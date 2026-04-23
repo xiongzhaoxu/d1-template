@@ -88,6 +88,95 @@ async function handleLogout(request: Request, env: Env): Promise<Response> {
 	});
 }
 
+// ===== User Management API (admin only) =====
+
+function requireAdmin(session: Session): Response | null {
+	if (session.role !== "admin") {
+		return jsonResponse({ error: "无权限，仅管理员可访问" }, 403);
+	}
+	return null;
+}
+
+async function handleGetUsers(env: Env): Promise<Response> {
+	const { results } = await env.DB.prepare(
+		"SELECT id, username, email, role, is_active, last_login_at, last_login_ip, created_at, updated_at FROM users ORDER BY id"
+	).all();
+	return jsonResponse({ data: results });
+}
+
+async function handleCreateUser(request: Request, env: Env): Promise<Response> {
+	const body = (await request.json()) as { username?: string; email?: string; password?: string; role?: string };
+	if (!body.username || !body.email || !body.password) {
+		return jsonResponse({ error: "用户名、邮箱和密码不能为空" }, 400);
+	}
+	const role = body.role === "admin" ? "admin" : "viewer";
+	try {
+		const result = await env.DB.prepare("INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, MD5(?), ?)")
+			.bind(body.username, body.email, body.password, role)
+			.run();
+		// D1 doesn't have MD5() — compute on client side instead
+		return jsonResponse({ success: false, error: "请使用 passwordHash 传参" }, 400);
+	} catch (e: unknown) {
+		const msg = e instanceof Error ? e.message : String(e);
+		if (msg.includes("UNIQUE")) {
+			return jsonResponse({ error: "用户名或邮箱已存在" }, 409);
+		}
+		return jsonResponse({ error: "创建失败" }, 500);
+	}
+}
+
+async function handleCreateUserWithHash(request: Request, env: Env): Promise<Response> {
+	const body = (await request.json()) as { username?: string; email?: string; passwordHash?: string; role?: string };
+	if (!body.username || !body.email || !body.passwordHash) {
+		return jsonResponse({ error: "用户名、邮箱和密码不能为空" }, 400);
+	}
+	const role = body.role === "admin" ? "admin" : "viewer";
+	try {
+		const result = await env.DB.prepare("INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)")
+			.bind(body.username, body.email, body.passwordHash, role)
+			.run();
+		return jsonResponse({ success: true, id: result.meta.last_row_id });
+	} catch (e: unknown) {
+		const msg = e instanceof Error ? e.message : String(e);
+		if (msg.includes("UNIQUE")) {
+			return jsonResponse({ error: "用户名或邮箱已存在" }, 409);
+		}
+		return jsonResponse({ error: "创建失败" }, 500);
+	}
+}
+
+async function handleUpdateUser(request: Request, env: Env, session: Session, id: number): Promise<Response> {
+	const body = (await request.json()) as { email?: string; role?: string; is_active?: number; passwordHash?: string };
+
+	const sets: string[] = [];
+	const values: unknown[] = [];
+
+	if (body.email !== undefined) { sets.push("email = ?"); values.push(body.email); }
+	if (body.role !== undefined) { sets.push("role = ?"); values.push(body.role === "admin" ? "admin" : "viewer"); }
+	if (body.is_active !== undefined) { sets.push("is_active = ?"); values.push(body.is_active ? 1 : 0); }
+	if (body.passwordHash) { sets.push("password_hash = ?"); values.push(body.passwordHash); }
+
+	if (sets.length === 0) {
+		return jsonResponse({ error: "没有需要更新的字段" }, 400);
+	}
+
+	sets.push("updated_at = datetime('now')");
+	values.push(id);
+
+	await env.DB.prepare(`UPDATE users SET ${sets.join(", ")} WHERE id = ?`).bind(...values).run();
+	return jsonResponse({ success: true });
+}
+
+async function handleDeleteUser(env: Env, session: Session, id: number): Promise<Response> {
+	if (id === session.userId) {
+		return jsonResponse({ error: "不能删除当前登录的用户" }, 400);
+	}
+	await env.DB.prepare("DELETE FROM users WHERE id = ?").bind(id).run();
+	return jsonResponse({ success: true });
+}
+
+// ===== User Data API =====
+
 async function handleGetUserData(request: Request, env: Env, session: Session): Promise<Response> {
 	if (session.role === "admin") {
 		const { results } = await env.DB.prepare(
@@ -161,6 +250,31 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
 	if (path === "/api/me" && request.method === "GET") {
 		return jsonResponse({ userId: session.userId, username: session.username, role: session.role });
 	}
+
+	// User management (admin only)
+	if (path.startsWith("/api/users")) {
+		const denied = requireAdmin(session);
+		if (denied) return denied;
+
+		if (path === "/api/users" && request.method === "GET") {
+			return handleGetUsers(env);
+		}
+		if (path === "/api/users" && request.method === "POST") {
+			return handleCreateUserWithHash(request, env);
+		}
+
+		const userMatch = path.match(/^\/api\/users\/(\d+)$/);
+		if (userMatch) {
+			const id = parseInt(userMatch[1]);
+			if (request.method === "PUT") {
+				return handleUpdateUser(request, env, session, id);
+			}
+			if (request.method === "DELETE") {
+				return handleDeleteUser(env, session, id);
+			}
+		}
+	}
+
 	if (path === "/api/user-data" && request.method === "GET") {
 		return handleGetUserData(request, env, session);
 	}
