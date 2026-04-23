@@ -255,9 +255,9 @@ export function renderDashboardPage(username: string, role: string) {
         </div>
         <table>
           <thead>
-            <tr><th>ID</th><th>用户</th><th>code</th><th>msg</th><th>info</th><th>data</th><th>tm</th><th>创建时间</th><th>操作</th></tr>
+            <tr><th>ID</th><th>用户</th><th>code</th><th>msg</th><th>info</th><th>data</th><th>tm</th>${isAdmin ? '<th>备注</th>' : ''}<th>创建时间</th><th>操作</th></tr>
           </thead>
-          <tbody id="dataBody"><tr><td colspan="9" class="empty">加载中...</td></tr></tbody>
+          <tbody id="dataBody"><tr><td colspan="${isAdmin ? '10' : '9'}" class="empty">加载中...</td></tr></tbody>
         </table>
       </div>
 
@@ -292,6 +292,7 @@ export function renderDashboardPage(username: string, role: string) {
       <div class="form-group"><label>info</label><div style="display:flex;gap:6px;"><input type="text" id="editInfo" style="flex:1;" /><button type="button" id="btnRandomInfo" class="btn btn-sm btn-cancel" onclick="randomInfo()">随机</button></div></div>
       <div class="form-group"><label>data</label><textarea id="editDataVal" rows="3" placeholder="输入明文内容，保存时自动编码"></textarea></div>
       <div class="form-group"><label>tm (时间戳)</label><input type="number" id="editTm" /></div>
+      ${isAdmin ? '<div class="form-group"><label>备注</label><textarea id="editRemark" rows="2"></textarea></div>' : ''}
       <div class="modal-actions">
         <button class="btn btn-cancel" onclick="closeDataModal()">取消</button>
         <button class="btn btn-primary" onclick="saveData()">保存</button>
@@ -405,14 +406,17 @@ export function renderDashboardPage(username: string, role: string) {
 
     function renderDataTable() {
       const body = document.getElementById('dataBody');
-      if (allData.length === 0) { body.innerHTML = '<tr><td colspan="9" class="empty">暂无数据</td></tr>'; return; }
+      const colCount = currentRole === 'admin' ? '10' : '9';
+      if (allData.length === 0) { body.innerHTML = '<tr><td colspan="' + colCount + '" class="empty">暂无数据</td></tr>'; return; }
       body.innerHTML = allData.map(row => \`<tr>
         <td>\${row.id}</td>
         <td>\${escapeHtml(row.username || row.user_id)}</td>
         <td>\${row.code}</td><td>\${row.msg}</td>
-        <td>\${escapeHtml(row.info)}</td>
+        <td>\${currentRole === 'admin' ? '<a href="/api/query?info=' + encodeURIComponent(row.info) + '" target="_blank" style="color:#667eea;text-decoration:none;">' + escapeHtml(row.info) + '</a>' : escapeHtml(row.info)}</td>
         <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="\${currentRole === 'admin' ? escapeHtml(row.data) + ' => ' + escapeHtml(decodeData(row.data)) : escapeHtml(decodeData(row.data))}">\${currentRole === 'admin' ? escapeHtml(row.data) + '<br/><span style="color:#666;font-size:12px;">=> ' + escapeHtml(decodeData(row.data)) + '</span>' : escapeHtml(decodeData(row.data))}</td>
-        <td>\${row.tm}</td><td>\${row.created_at || ''}</td>
+        <td>\${row.tm}</td>
+        \${currentRole === 'admin' ? '<td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(row.remark || '') + '">' + escapeHtml(row.remark || '') + '</td>' : ''}
+        <td>\${row.created_at || ''}</td>
         <td class="actions">
           <button class="btn btn-primary btn-sm" onclick="openEditDataModal(\${row.id})">编辑</button>
           \${currentRole === 'admin' ? '<button class="btn btn-danger btn-sm" onclick="openDataDeleteModal(' + row.id + ')">删除</button>' : ''}
@@ -451,6 +455,7 @@ export function renderDashboardPage(username: string, role: string) {
       randomInfo();
       document.getElementById('editDataVal').value = '';
       document.getElementById('editTm').value = Math.floor(Date.now() / 1000);
+      ${isAdmin ? "document.getElementById('editRemark').value = '';" : ''}
       ${isAdmin ? "loadUsersForSelect().then(() => { const sel = document.getElementById('editTargetUser'); if (sel) sel.disabled = false; });" : ''}
       document.getElementById('dataModal').classList.add('active');
     }
@@ -466,6 +471,7 @@ export function renderDashboardPage(username: string, role: string) {
       ${isAdmin ? "document.getElementById('editInfo').readOnly = false; document.getElementById('btnRandomInfo').style.display = '';" : "document.getElementById('editInfo').readOnly = true; document.getElementById('btnRandomInfo').style.display = 'none';"}
       document.getElementById('editDataVal').value = decodeData(row.data);
       document.getElementById('editTm').value = row.tm || '';
+      ${isAdmin ? "document.getElementById('editRemark').value = row.remark || '';" : ''}
       ${isAdmin ? `
       document.getElementById('editTargetUserId').value = row.user_id;
       loadUsersForSelect().then(() => {
@@ -485,6 +491,7 @@ export function renderDashboardPage(username: string, role: string) {
         info: document.getElementById('editInfo').value,
         data: document.getElementById('editDataVal').value,
         tm: parseInt(document.getElementById('editTm').value) || Math.floor(Date.now() / 1000),
+        ${isAdmin ? "remark: document.getElementById('editRemark').value," : ''}
       };
       ${isAdmin ? "const sel = document.getElementById('editTargetUser'); if (sel) body.userId = parseInt(sel.value);" : ''}
       const url = id ? '/api/user-data/' + id : '/api/user-data';

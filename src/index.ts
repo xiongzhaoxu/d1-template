@@ -183,7 +183,7 @@ async function handleGetUserData(request: Request, env: Env, session: Session): 
 		return jsonResponse({ data: results });
 	} else {
 		const { results } = await env.DB.prepare(
-			"SELECT ud.*, u.username FROM user_data ud LEFT JOIN users u ON ud.user_id = u.id WHERE ud.user_id = ? ORDER BY ud.id DESC"
+			"SELECT ud.id, ud.user_id, ud.code, ud.msg, ud.info, ud.data, ud.tm, ud.created_at, ud.updated_at, u.username FROM user_data ud LEFT JOIN users u ON ud.user_id = u.id WHERE ud.user_id = ? ORDER BY ud.id DESC"
 		)
 			.bind(session.userId)
 			.all();
@@ -196,7 +196,7 @@ async function handleCreateUserData(request: Request, env: Env, session: Session
 		return jsonResponse({ error: "仅管理员可新增数据" }, 403);
 	}
 
-	const body = (await request.json()) as { userId?: number; code?: number; msg?: number; info?: string; data?: string; tm?: number };
+	const body = (await request.json()) as { userId?: number; code?: number; msg?: number; info?: string; data?: string; tm?: number; remark?: string };
 	const targetUserId = body.userId ?? session.userId;
 
 	// Check if user already has data
@@ -214,16 +214,16 @@ async function handleCreateUserData(request: Request, env: Env, session: Session
 	const tm = body.tm ?? Math.floor(Date.now() / 1000);
 	const encodedData = encodeData(body.data ?? "");
 	const result = await env.DB.prepare(
-		"INSERT INTO user_data (user_id, code, msg, info, data, tm) VALUES (?, ?, ?, ?, ?, ?)"
+		"INSERT INTO user_data (user_id, code, msg, info, data, tm, remark) VALUES (?, ?, ?, ?, ?, ?, ?)"
 	)
-		.bind(targetUserId, body.code ?? 0, body.msg ?? 0, body.info ?? "", encodedData, tm)
+		.bind(targetUserId, body.code ?? 0, body.msg ?? 0, body.info ?? "", encodedData, tm, body.remark ?? "")
 			.run();
 
 	return jsonResponse({ success: true, id: result.meta.last_row_id });
 }
 
 async function handleUpdateUserData(request: Request, env: Env, session: Session, id: number): Promise<Response> {
-	const body = (await request.json()) as { code?: number; msg?: number; info?: string; data?: string; tm?: number };
+	const body = (await request.json()) as { code?: number; msg?: number; info?: string; data?: string; tm?: number; remark?: string };
 
 	if (session.role !== "admin") {
 		const row = await env.DB.prepare("SELECT user_id FROM user_data WHERE id = ?").bind(id).first<{ user_id: number }>();
@@ -242,8 +242,8 @@ async function handleUpdateUserData(request: Request, env: Env, session: Session
 	const existing = await env.DB.prepare("SELECT data FROM user_data WHERE id = ?").bind(id).first<{ data: string }>();
 	const encodedData = encodeData(body.data ?? "", existing?.data);
 
-	await env.DB.prepare("UPDATE user_data SET code = ?, msg = ?, info = ?, data = ?, tm = ?, updated_at = datetime('now') WHERE id = ?")
-		.bind(body.code ?? 0, body.msg ?? 0, body.info ?? "", encodedData, body.tm ?? Math.floor(Date.now() / 1000), id)
+	await env.DB.prepare("UPDATE user_data SET code = ?, msg = ?, info = ?, data = ?, tm = ?, remark = ?, updated_at = datetime('now') WHERE id = ?")
+		.bind(body.code ?? 0, body.msg ?? 0, body.info ?? "", encodedData, body.tm ?? Math.floor(Date.now() / 1000), body.remark ?? "", id)
 		.run();
 
 	return jsonResponse({ success: true });

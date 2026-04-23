@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS user_data (
     code INTEGER DEFAULT 0,
     msg INTEGER DEFAULT 0,
     info TEXT,
+    remark TEXT DEFAULT '',
     data TEXT,
     tm INTEGER,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
