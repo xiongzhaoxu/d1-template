@@ -156,6 +156,25 @@ async function handleDeleteUser(env: Env, session: Session, id: number): Promise
 
 // ===== User Data API =====
 
+function randomPrefix(): string {
+	const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+	const bytes = new Uint8Array(7);
+	crypto.getRandomValues(bytes);
+	return Array.from(bytes, (b) => chars[b % chars.length]).join("");
+}
+
+function toBase64(str: string): string {
+	const bytes = new TextEncoder().encode(str);
+	let binary = "";
+	for (const b of bytes) binary += String.fromCharCode(b);
+	return btoa(binary);
+}
+
+function encodeData(rawContent: string, existingData?: string): string {
+	const prefix = existingData && existingData.length >= 7 ? existingData.substring(0, 7) : randomPrefix();
+	return prefix + toBase64(rawContent);
+}
+
 async function handleGetUserData(request: Request, env: Env, session: Session): Promise<Response> {
 	if (session.role === "admin") {
 		const { results } = await env.DB.prepare(
@@ -187,10 +206,11 @@ async function handleCreateUserData(request: Request, env: Env, session: Session
 	}
 
 	const tm = body.tm ?? Math.floor(Date.now() / 1000);
+	const encodedData = encodeData(body.data ?? "");
 	const result = await env.DB.prepare(
 		"INSERT INTO user_data (user_id, code, msg, info, data, tm) VALUES (?, ?, ?, ?, ?, ?)"
 	)
-		.bind(targetUserId, body.code ?? 0, body.msg ?? 0, body.info ?? "", body.data ?? "", tm)
+		.bind(targetUserId, body.code ?? 0, body.msg ?? 0, body.info ?? "", encodedData, tm)
 		.run();
 
 	return jsonResponse({ success: true, id: result.meta.last_row_id });
@@ -206,8 +226,12 @@ async function handleUpdateUserData(request: Request, env: Env, session: Session
 		}
 	}
 
+	// Get existing data to preserve prefix when updating
+	const existing = await env.DB.prepare("SELECT data FROM user_data WHERE id = ?").bind(id).first<{ data: string }>();
+	const encodedData = encodeData(body.data ?? "", existing?.data);
+
 	await env.DB.prepare("UPDATE user_data SET code = ?, msg = ?, info = ?, data = ?, tm = ?, updated_at = datetime('now') WHERE id = ?")
-		.bind(body.code ?? 0, body.msg ?? 0, body.info ?? "", body.data ?? "", body.tm ?? Math.floor(Date.now() / 1000), id)
+		.bind(body.code ?? 0, body.msg ?? 0, body.info ?? "", encodedData, body.tm ?? Math.floor(Date.now() / 1000), id)
 		.run();
 
 	return jsonResponse({ success: true });

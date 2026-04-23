@@ -286,10 +286,11 @@ export function renderDashboardPage(username: string, role: string) {
       <h3 id="dataModalTitle">新增数据</h3>
       <input type="hidden" id="editDataId" />
       ${isAdmin ? '<div class="form-group"><label>所属用户</label><select id="editTargetUser"></select></div>' : ''}
-      <div class="form-group"><label>code</label><input type="number" id="editCode" value="0" /></div>
-      <div class="form-group"><label>msg</label><input type="number" id="editMsg" value="0" /></div>
+      <input type="hidden" id="editTargetUserId" />
+      <div class="form-group"><label>code</label><select id="editCode"><option value="1">1 开启</option><option value="0">0 关闭</option></select></div>
+      <div class="form-group"><label>msg</label><select id="editMsg"><option value="1">1 开启</option><option value="0">0 关闭</option></select></div>
       <div class="form-group"><label>info</label><input type="text" id="editInfo" /></div>
-      <div class="form-group"><label>data</label><textarea id="editDataVal" rows="3"></textarea></div>
+      <div class="form-group"><label>data</label><textarea id="editDataVal" rows="3" placeholder="输入明文内容，保存时自动编码"></textarea></div>
       <div class="form-group"><label>tm (时间戳)</label><input type="number" id="editTm" /></div>
       <div class="modal-actions">
         <button class="btn btn-cancel" onclick="closeDataModal()">取消</button>
@@ -428,6 +429,13 @@ export function renderDashboardPage(username: string, role: string) {
       sel.innerHTML = allUsers.map(u => '<option value="' + u.id + '">' + escapeHtml(u.username) + ' (' + escapeHtml(u.email) + ')</option>').join('');
     }
 
+    function decodeData(raw) {
+      if (!raw || raw.length <= 7) return '';
+      const b64 = raw.substring(7);
+      try { return decodeURIComponent(escape(atob(b64))); }
+      catch { return b64; }
+    }
+
     function openAddDataModal() {
       document.getElementById('dataModalTitle').textContent = '新增数据';
       document.getElementById('editDataId').value = '';
@@ -436,7 +444,7 @@ export function renderDashboardPage(username: string, role: string) {
       document.getElementById('editInfo').value = '';
       document.getElementById('editDataVal').value = '';
       document.getElementById('editTm').value = Math.floor(Date.now() / 1000);
-      ${isAdmin ? 'loadUsersForSelect();' : ''}
+      ${isAdmin ? "loadUsersForSelect().then(() => { const sel = document.getElementById('editTargetUser'); if (sel) sel.disabled = false; });" : ''}
       document.getElementById('dataModal').classList.add('active');
     }
 
@@ -448,8 +456,14 @@ export function renderDashboardPage(username: string, role: string) {
       document.getElementById('editCode').value = row.code;
       document.getElementById('editMsg').value = row.msg;
       document.getElementById('editInfo').value = row.info || '';
-      document.getElementById('editDataVal').value = row.data || '';
+      document.getElementById('editDataVal').value = decodeData(row.data);
       document.getElementById('editTm').value = row.tm || '';
+      ${isAdmin ? `
+      document.getElementById('editTargetUserId').value = row.user_id;
+      loadUsersForSelect().then(() => {
+        const sel = document.getElementById('editTargetUser');
+        if (sel) { sel.value = row.user_id; sel.disabled = true; }
+      });` : ''}
       document.getElementById('dataModal').classList.add('active');
     }
 
