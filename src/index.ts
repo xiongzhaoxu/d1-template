@@ -258,8 +258,32 @@ async function handleDeleteUserData(request: Request, env: Env, session: Session
 	return jsonResponse({ success: true });
 }
 
+// ===== Public API =====
+
+async function handleQueryByInfo(env: Env, info: string): Promise<Response> {
+	if (!info) {
+		return jsonResponse({ error: "缺少 info 参数" }, 400);
+	}
+	const row = await env.DB.prepare(
+		"SELECT ud.id, ud.code, ud.msg, ud.info, ud.data, ud.tm, ud.created_at, ud.updated_at FROM user_data ud WHERE ud.info = ?"
+	)
+		.bind(info)
+		.first<{ id: number; code: number; msg: number; info: string; data: string; tm: number; created_at: string; updated_at: string }>();
+
+	if (!row) {
+		return jsonResponse({ error: "未找到数据" }, 404);
+	}
+	return jsonResponse(row);
+}
+
 async function handleApi(request: Request, env: Env, url: URL): Promise<Response> {
 	const path = url.pathname;
+
+	// Public routes (no auth required)
+	if (path === "/api/query" && request.method === "GET") {
+		const info = url.searchParams.get("info");
+		return handleQueryByInfo(env, info || "");
+	}
 
 	if (path === "/api/login" && request.method === "POST") {
 		return handleLoginWithHash(request, env);
