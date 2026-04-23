@@ -21,3 +21,6 @@ CREATE INDEX IF NOT EXISTS idx_user_data_tm ON user_data(tm);
 
 -- 可选：如果每个用户只能有一条数据，加上唯一约束
 CREATE UNIQUE INDEX IF NOT EXISTS idx_user_data_unique ON user_data(user_id);
+
+-- 给 info 字段添加唯一索引
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_data_info ON user_data(info);
