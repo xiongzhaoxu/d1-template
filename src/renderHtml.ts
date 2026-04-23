@@ -251,7 +251,7 @@ export function renderDashboardPage(username: string, role: string) {
       <div class="page active" id="page-data">
         <div class="toolbar">
           <h2>数据管理</h2>
-          <button class="btn btn-primary" onclick="openAddDataModal()">+ 新增数据</button>
+          ${isAdmin ? '<button class="btn btn-primary" onclick="openAddDataModal()">+ 新增数据</button>' : ''}
         </div>
         <table>
           <thead>
@@ -285,6 +285,7 @@ export function renderDashboardPage(username: string, role: string) {
     <div class="modal">
       <h3 id="dataModalTitle">新增数据</h3>
       <input type="hidden" id="editDataId" />
+      ${isAdmin ? '<div class="form-group"><label>所属用户</label><select id="editTargetUser"></select></div>' : ''}
       <div class="form-group"><label>code</label><input type="number" id="editCode" value="0" /></div>
       <div class="form-group"><label>msg</label><input type="number" id="editMsg" value="0" /></div>
       <div class="form-group"><label>info</label><input type="text" id="editInfo" /></div>
@@ -418,6 +419,15 @@ export function renderDashboardPage(username: string, role: string) {
       </tr>\`).join('');
     }
 
+    async function loadUsersForSelect() {
+      const r = await api('/api/users');
+      if (!r || !r.res.ok) return;
+      allUsers = r.json.data || [];
+      const sel = document.getElementById('editTargetUser');
+      if (!sel) return;
+      sel.innerHTML = allUsers.map(u => '<option value="' + u.id + '">' + escapeHtml(u.username) + ' (' + escapeHtml(u.email) + ')</option>').join('');
+    }
+
     function openAddDataModal() {
       document.getElementById('dataModalTitle').textContent = '新增数据';
       document.getElementById('editDataId').value = '';
@@ -426,6 +436,7 @@ export function renderDashboardPage(username: string, role: string) {
       document.getElementById('editInfo').value = '';
       document.getElementById('editDataVal').value = '';
       document.getElementById('editTm').value = Math.floor(Date.now() / 1000);
+      ${isAdmin ? 'loadUsersForSelect();' : ''}
       document.getElementById('dataModal').classList.add('active');
     }
 
@@ -453,6 +464,7 @@ export function renderDashboardPage(username: string, role: string) {
         data: document.getElementById('editDataVal').value,
         tm: parseInt(document.getElementById('editTm').value) || Math.floor(Date.now() / 1000),
       };
+      ${isAdmin ? "const sel = document.getElementById('editTargetUser'); if (sel) body.userId = parseInt(sel.value);" : ''}
       const url = id ? '/api/user-data/' + id : '/api/user-data';
       const method = id ? 'PUT' : 'POST';
       const r = await api(url, { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });

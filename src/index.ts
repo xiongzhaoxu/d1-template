@@ -104,27 +104,6 @@ async function handleGetUsers(env: Env): Promise<Response> {
 	return jsonResponse({ data: results });
 }
 
-async function handleCreateUser(request: Request, env: Env): Promise<Response> {
-	const body = (await request.json()) as { username?: string; email?: string; password?: string; role?: string };
-	if (!body.username || !body.email || !body.password) {
-		return jsonResponse({ error: "用户名、邮箱和密码不能为空" }, 400);
-	}
-	const role = body.role === "admin" ? "admin" : "viewer";
-	try {
-		const result = await env.DB.prepare("INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, MD5(?), ?)")
-			.bind(body.username, body.email, body.password, role)
-			.run();
-		// D1 doesn't have MD5() — compute on client side instead
-		return jsonResponse({ success: false, error: "请使用 passwordHash 传参" }, 400);
-	} catch (e: unknown) {
-		const msg = e instanceof Error ? e.message : String(e);
-		if (msg.includes("UNIQUE")) {
-			return jsonResponse({ error: "用户名或邮箱已存在" }, 409);
-		}
-		return jsonResponse({ error: "创建失败" }, 500);
-	}
-}
-
 async function handleCreateUserWithHash(request: Request, env: Env): Promise<Response> {
 	const body = (await request.json()) as { username?: string; email?: string; passwordHash?: string; role?: string };
 	if (!body.username || !body.email || !body.passwordHash) {
@@ -194,10 +173,24 @@ async function handleGetUserData(request: Request, env: Env, session: Session): 
 }
 
 async function handleCreateUserData(request: Request, env: Env, session: Session): Promise<Response> {
-	const body = (await request.json()) as { code?: number; msg?: number; info?: string; data?: string; tm?: number };
+	if (session.role !== "admin") {
+		return jsonResponse({ error: "仅管理员可新增数据" }, 403);
+	}
 
-	const result = await env.DB.prepare("INSERT INTO user_data (user_id, code, msg, info, data, tm) VALUES (?, ?, ?, ?, ?, ?)")
-		.bind(session.userId, body.code ?? 0, body.msg ?? 0, body.info ?? "", body.data ?? "", body.tm ?? Math.floor(Date.now() / 1000))
+	const body = (await request.json()) as { userId?: number; code?: number; msg?: number; info?: string; data?: string; tm?: number };
+	const targetUserId = body.userId ?? session.userId;
+
+	// Check if user already has data
+	const existing = await env.DB.prepare("SELECT id FROM user_data WHERE user_id = ?").bind(targetUserId).first();
+	if (existing) {
+		return jsonResponse({ error: "该用户已存在数据，请使用编辑功能修改" }, 409);
+	}
+
+	const tm = body.tm ?? Math.floor(Date.now() / 1000);
+	const result = await env.DB.prepare(
+		"INSERT INTO user_data (user_id, code, msg, info, data, tm) VALUES (?, ?, ?, ?, ?, ?)"
+	)
+		.bind(targetUserId, body.code ?? 0, body.msg ?? 0, body.info ?? "", body.data ?? "", tm)
 		.run();
 
 	return jsonResponse({ success: true, id: result.meta.last_row_id });
