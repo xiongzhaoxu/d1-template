@@ -4,7 +4,7 @@ export function renderLoginPage(error = "") {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>登录 - D1 数据管理</title>
+  <title>登录 - 数据管理</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -46,7 +46,7 @@ export function renderLoginPage(error = "") {
 </head>
 <body>
   <div class="login-card">
-    <h1>D1 数据管理</h1>
+    <h1>数据管理</h1>
     <div class="error-msg" id="errorMsg">${error}</div>
     <form id="loginForm">
       <div class="form-group">
@@ -229,7 +229,7 @@ export function renderDashboardPage(username: string, role: string) {
   <!-- Sidebar -->
   <div class="sidebar">
     <div class="sidebar-brand">
-      <h1>D1 数据管理</h1>
+      <h1>数据管理</h1>
     </div>
     <div class="sidebar-nav">
       <button class="nav-item active" onclick="switchPage('data')" id="nav-data">数据管理</button>
@@ -411,11 +411,11 @@ export function renderDashboardPage(username: string, role: string) {
         <td>\${escapeHtml(row.username || row.user_id)}</td>
         <td>\${row.code}</td><td>\${row.msg}</td>
         <td>\${escapeHtml(row.info)}</td>
-        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="\${escapeHtml(row.data)}">\${escapeHtml(row.data)}</td>
+        <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="\${currentRole === 'admin' ? escapeHtml(row.data) + ' => ' + escapeHtml(decodeData(row.data)) : escapeHtml(decodeData(row.data))}">\${currentRole === 'admin' ? escapeHtml(row.data) + '<br/><span style="color:#666;font-size:12px;">=> ' + escapeHtml(decodeData(row.data)) + '</span>' : escapeHtml(decodeData(row.data))}</td>
         <td>\${row.tm}</td><td>\${row.created_at || ''}</td>
         <td class="actions">
           <button class="btn btn-primary btn-sm" onclick="openEditDataModal(\${row.id})">编辑</button>
-          <button class="btn btn-danger btn-sm" onclick="openDataDeleteModal(\${row.id})">删除</button>
+          \${currentRole === 'admin' ? '<button class="btn btn-danger btn-sm" onclick="openDataDeleteModal(' + row.id + ')">删除</button>' : ''}
         </td>
       </tr>\`).join('');
     }

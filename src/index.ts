@@ -239,10 +239,7 @@ async function handleUpdateUserData(request: Request, env: Env, session: Session
 
 async function handleDeleteUserData(request: Request, env: Env, session: Session, id: number): Promise<Response> {
 	if (session.role !== "admin") {
-		const row = await env.DB.prepare("SELECT user_id FROM user_data WHERE id = ?").bind(id).first<{ user_id: number }>();
-		if (!row || row.user_id !== session.userId) {
-			return jsonResponse({ error: "无权限" }, 403);
-		}
+		return jsonResponse({ error: "仅管理员可删除数据" }, 403);
 	}
 
 	await env.DB.prepare("DELETE FROM user_data WHERE id = ?").bind(id).run();
