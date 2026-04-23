@@ -289,7 +289,7 @@ export function renderDashboardPage(username: string, role: string) {
       <input type="hidden" id="editTargetUserId" />
       <div class="form-group"><label>code</label><select id="editCode"><option value="1">1 开启</option><option value="0">0 关闭</option></select></div>
       <div class="form-group"><label>msg</label><select id="editMsg"><option value="1">1 开启</option><option value="0">0 关闭</option></select></div>
-      <div class="form-group"><label>info</label><input type="text" id="editInfo" /></div>
+      <div class="form-group"><label>info</label><div style="display:flex;gap:6px;"><input type="text" id="editInfo" style="flex:1;" /><button type="button" id="btnRandomInfo" class="btn btn-sm btn-cancel" onclick="randomInfo()">随机</button></div></div>
       <div class="form-group"><label>data</label><textarea id="editDataVal" rows="3" placeholder="输入明文内容，保存时自动编码"></textarea></div>
       <div class="form-group"><label>tm (时间戳)</label><input type="number" id="editTm" /></div>
       <div class="modal-actions">
@@ -436,12 +436,19 @@ export function renderDashboardPage(username: string, role: string) {
       catch { return b64; }
     }
 
+    function randomInfo() {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+      let s = '';
+      for (let i = 0; i < 9; i++) s += chars.charAt(Math.floor(Math.random() * chars.length));
+      document.getElementById('editInfo').value = s;
+    }
+
     function openAddDataModal() {
       document.getElementById('dataModalTitle').textContent = '新增数据';
       document.getElementById('editDataId').value = '';
       document.getElementById('editCode').value = '0';
       document.getElementById('editMsg').value = '0';
-      document.getElementById('editInfo').value = '';
+      randomInfo();
       document.getElementById('editDataVal').value = '';
       document.getElementById('editTm').value = Math.floor(Date.now() / 1000);
       ${isAdmin ? "loadUsersForSelect().then(() => { const sel = document.getElementById('editTargetUser'); if (sel) sel.disabled = false; });" : ''}
@@ -456,6 +463,7 @@ export function renderDashboardPage(username: string, role: string) {
       document.getElementById('editCode').value = row.code;
       document.getElementById('editMsg').value = row.msg;
       document.getElementById('editInfo').value = row.info || '';
+      ${isAdmin ? "document.getElementById('editInfo').readOnly = false; document.getElementById('btnRandomInfo').style.display = '';" : "document.getElementById('editInfo').readOnly = true; document.getElementById('btnRandomInfo').style.display = 'none';"}
       document.getElementById('editDataVal').value = decodeData(row.data);
       document.getElementById('editTm').value = row.tm || '';
       ${isAdmin ? `
