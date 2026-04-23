@@ -205,13 +205,19 @@ async function handleCreateUserData(request: Request, env: Env, session: Session
 		return jsonResponse({ error: "该用户已存在数据，请使用编辑功能修改" }, 409);
 	}
 
+	// Check info uniqueness
+	const infoExists = await env.DB.prepare("SELECT id FROM user_data WHERE info = ? AND id != ?").bind(body.info ?? "", 0).first();
+	if (infoExists) {
+		return jsonResponse({ error: "info 已被使用，请点击随机按钮重新生成" }, 409);
+	}
+
 	const tm = body.tm ?? Math.floor(Date.now() / 1000);
 	const encodedData = encodeData(body.data ?? "");
 	const result = await env.DB.prepare(
 		"INSERT INTO user_data (user_id, code, msg, info, data, tm) VALUES (?, ?, ?, ?, ?, ?)"
 	)
 		.bind(targetUserId, body.code ?? 0, body.msg ?? 0, body.info ?? "", encodedData, tm)
-		.run();
+			.run();
 
 	return jsonResponse({ success: true, id: result.meta.last_row_id });
 }
@@ -224,6 +230,12 @@ async function handleUpdateUserData(request: Request, env: Env, session: Session
 		if (!row || row.user_id !== session.userId) {
 			return jsonResponse({ error: "无权限" }, 403);
 		}
+	}
+
+	// Check info uniqueness (exclude current row)
+	const infoExists = await env.DB.prepare("SELECT id FROM user_data WHERE info = ? AND id != ?").bind(body.info ?? "", id).first();
+	if (infoExists) {
+		return jsonResponse({ error: "info 已被使用，请点击随机按钮重新生成" }, 409);
 	}
 
 	// Get existing data to preserve prefix when updating
