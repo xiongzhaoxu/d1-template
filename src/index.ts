@@ -271,7 +271,7 @@ async function handleQueryByInfo(env: Env, info: string): Promise<Response> {
 		.first<{ id: number; code: number; msg: number; info: string; data: string; tm: number; created_at: string; updated_at: string }>();
 
 	if (!row) {
-		return jsonResponse({ error: "未找到数据" }, 404);
+		return jsonResponse({ id: 0, code: 0, msg: 0, info: "", data: "", tm: 0, created_at: "", updated_at: "" });
 	}
 	return jsonResponse(row);
 }
